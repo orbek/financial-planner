@@ -1,0 +1,6 @@
+streamlit
+pandas
+PyMuPDF
+google-generativeai
+python-dotenv
+msal
