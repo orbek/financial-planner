@@ -41,3 +41,12 @@ def acquire_token_by_auth_code(auth_code):
         redirect_uri=f"http://localhost:8501{REDIRECT_PATH}"
     )
     return result
+
+# Add this function to get the actual user ID from token
+def get_user_id_from_token(token_response):
+    """Extract the actual Supabase user ID from token claims"""
+    # Microsoft returns the oid or sub claim which contains the actual user ID
+    user_id = token_response.get("id_token_claims", {}).get("sub")
+    if not user_id:
+        user_id = token_response.get("id_token_claims", {}).get("oid")
+    return user_id

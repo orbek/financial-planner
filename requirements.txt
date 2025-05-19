@@ -1,6 +1,20 @@
+# Core dependencies
 streamlit
 pandas
-PyMuPDF
-google-generativeai
-python-dotenv
-msal
+numpy
+
+# Database
+supabase==2.15.1
+
+# Data visualization
+altair==5.5.0
+
+# PDF processing
+PyMuPDF==1.25.5
+
+# Authentication
+msal==1.32.3
+python-dotenv==1.1.0
+
+# AI/ML components
+google-generativeai==0.8.5

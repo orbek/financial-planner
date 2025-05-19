@@ -1,75 +1,103 @@
 import streamlit as st
-from auth import get_sign_in_url, acquire_token_by_auth_code
-from database import insert_transaction, fetch_transactions
-from extractor import parse_pdf
-import pandas as pd
-from urllib.parse import urlparse, parse_qs
+from auth import get_sign_in_url, acquire_token_by_auth_code, get_user_id_from_token
 import uuid
+import os
 
-def uuid_from_email(email: str) -> str:
-    return str(uuid.uuid5(uuid.NAMESPACE_DNS, email))
+# Import components
+from components.sidebar import render_sidebar
+from components.charts import income_vs_expense_chart, display_chart
 
-st.set_page_config("Financial Planner", layout="wide")
+# Authentication setup
+def initialize_auth():
+    # Handle Microsoft OAuth redirect
+    query_params = st.query_params
+    if "code" in query_params:
+        code = query_params["code"][0] if isinstance(query_params["code"], list) else query_params["code"]
+        token_response = acquire_token_by_auth_code(code)
+        user_email = token_response.get("id_token_claims", {}).get("preferred_username")
+        # Get the actual user ID from token
+        user_id = get_user_id_from_token(token_response)
+        if user_email and user_id:
+            st.session_state["user"] = user_email
+            st.session_state["user_id"] = user_id
+            st.rerun()
 
-# Handle Microsoft OAuth redirect
-query_params = st.query_params  # Updated for Streamlit >=1.45
-if "code" in query_params:
-    code = query_params["code"][0] if isinstance(query_params["code"], list) else query_params["code"]
-    token_response = acquire_token_by_auth_code(code)
-    user_email = token_response.get("id_token_claims", {}).get("preferred_username")
-    #st.write("Token response:", token_response)  # Debug: See what comes back
-    if user_email:
-        st.session_state["user"] = user_email
-        st.rerun()  # Use st.rerun() for Streamlit >=1.45
+# Page configuration
+st.set_page_config(
+    page_title="Financial Planner",
+    page_icon="💰",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Login
+# Initialize authentication
+initialize_auth()
+
+# Render sidebar using component
+render_sidebar()
+
+# Main content - Landing Page
 if "user" not in st.session_state:
-    sign_in_url = get_sign_in_url()
-    st.markdown(f"[Sign in with Microsoft]({sign_in_url})")
-    st.stop()
-
-st.sidebar.success(f"Welcome, {st.session_state['user']}!")
-
-# Upload PDF
-uploaded_file = st.sidebar.file_uploader("Upload Bank Statement (PDF)", type=["pdf"])
-if uploaded_file:
-    transactions = parse_pdf(uploaded_file)
-    st.write("Extracted transactions:", transactions)  # Debug: Show extracted DataFrame
-    for _, row in transactions.iterrows():
-        st.write("Inserting row:", row)  # Debug: Show each row being inserted
-        insert_transaction(
-            user_id=uuid_from_email(st.session_state["user"]),
-            date=row["Date"],
-            amount=row["Amount"],
-            t_type=row["Type"],
-            desc=row["Description"]
-        )
-    st.success("Transactions uploaded successfully!")
-
-if st.sidebar.button("Insert Test Transaction"):
-    insert_transaction(
-        user_id=uuid_from_email(st.session_state["user"]),
-        date="2025-05-17",
-        amount=100.0,
-        t_type="Income",
-        desc="Test Salary"
-    )
-    st.success("Test transaction inserted!")
-
-# Fetch and display
-data = pd.DataFrame(fetch_transactions(uuid_from_email(st.session_state["user"])))
-st.write("Fetched transactions from DB:", data)  # Debug: Show fetched DataFrame
-if not data.empty:
-    st.title("📊 Your Financial Dashboard")
-    income = data[data["type"] == "Income"]["amount"].sum()
-    expense = data[data["type"] == "Expense"]["amount"].sum()
-    balance = income - expense
-
-    st.metric("Total Income", f"${income:,.2f}")
-    st.metric("Total Expense", f"${expense:,.2f}")
-    st.metric("Current Balance", f"${balance:,.2f}")
-
-    st.subheader("Transaction History")
-    st.dataframe(data)
+    st.title("💰 Financial Planner")
+    
+    st.markdown("""
+    ## Take control of your financial journey
+    
+    Track your spending, manage your accounts, and visualize your financial progress
+    all in one place.
+    
+    ### Key Features:
+    - ✅ **Multi-account management** - Track checking, savings, credit cards and more
+    - 📊 **Visual dashboard** - See where your money is going 
+    - 📑 **Statement uploads** - Automatically import transactions
+    - 📈 **Trend analysis** - Track your progress over time
+    
+    ### Get Started
+    Sign in with your Microsoft account using the button in the sidebar to begin!
+    """)
+    
+    # Feature showcase with columns
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.info("##### Account Management\nTrack all your financial accounts in one place")
+    
+    with col2:
+        st.info("##### Transaction Tracking\nEasily categorize and monitor your spending")
+    
+    with col3:
+        st.info("##### Financial Insights\nDiscover patterns in your spending habits")
+        
 else:
-    st.info("No transactions to display yet.")
+    st.title("💰 Financial Planner")
+    st.markdown("## Welcome to your financial dashboard")
+    st.info("Use the sidebar to navigate between pages")
+    
+    # Quick overview stats if user is logged in
+    from database import fetch_transactions, fetch_accounts
+    import pandas as pd
+    
+    try:
+        accounts_df = fetch_accounts(st.session_state["user_id"])
+        transactions_df = fetch_transactions(st.session_state["user_id"])
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Number of Accounts", len(accounts_df) if not accounts_df.empty else 0)
+        
+        with col2:
+            st.metric("Total Transactions", len(transactions_df) if not transactions_df.empty else 0)
+            
+        if not accounts_df.empty:
+            st.subheader("Your Accounts")
+            st.dataframe(accounts_df[["name", "type", "balance", "currency"]], use_container_width=True)
+            
+        # Add a chart to the homepage using our component
+        if not transactions_df.empty:
+            st.subheader("Financial Overview")
+            chart = income_vs_expense_chart(transactions_df)
+            display_chart(chart)
+            
+    except Exception as e:
+        st.error(f"Error loading dashboard data: {e}")
