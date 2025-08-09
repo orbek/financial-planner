@@ -1,0 +1,25 @@
+{
+  "name": "financial-planner-react",
+  "version": "1.0.0",
+  "description": "Modern React.js Financial Planner with AI-powered insights",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev:local": "docker compose -f docker-compose.dev.yml up",
+    "dev:db": "docker compose -f docker-compose.dev.yml up postgres redis -d",
+    "client": "cd client && npm run dev",
+    "server": "cd server && npm run dev",
+    "build": "cd client && npm run build",
+    "install-all": "npm install && cd client && npm install && cd ../server && npm install",
+    "test": "cd client && npm test",
+    "db:setup": "cd server && npm run db:setup",
+    "db:seed": "cd server && npm run db:seed",
+    "db:reset": "cd server && npm run db:reset"
+  },
+  "keywords": ["react", "financial", "planner", "typescript", "express"],
+  "author": "Carlos Barbosa",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
